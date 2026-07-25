@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SUG Awards - Vote Now</title>
   <link rel="stylesheet" href="style.css" />
-  
 </head>
 <body>
 
@@ -30,11 +29,17 @@
   <div id="message"></div>
 </div>
 
-<script src="script.js"></>
+<!-- Import Map - tells browser where to find Supabase -->
+<script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0"
+  }
+}
+</script>
+
+<!-- Load script.js as a module -->
+<script type="module" src="script.js"></script>
+
 </body>
-<footer>
-    <p>
-    &copy; All rights reserved BYSPOLY 2026 
-    </p>
-</footer>
 </html>
