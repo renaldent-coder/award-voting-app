@@ -2,6 +2,7 @@
   "name": "award-voting-app",
   "version": "1.0.0",
   "description": "SUG Awards Voting System",
+  "type": "module",
   "main": "index.html",
   "scripts": {
     "build": "echo 'No build needed'",
