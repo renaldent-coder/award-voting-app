@@ -1,3 +1,5 @@
+import { supabase } from './supabase/client.js'
+
 const categories = [
   "BEST STUDENT OF THE YEAR",
   "MOST OUTSTANDING STUDENT",
@@ -76,23 +78,33 @@ document.getElementById('votingForm').addEventListener('submit', async (e) => {
     return
   }
 
-  // Submit each vote
   let successCount = 0
   let errorCount = 0
 
   for (const vote of votes) {
     try {
-      const res = await fetch('/api/vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(vote)
-      })
-      const data = await res.json()
-      if (res.ok) {
-        successCount++
-      } else {
+      // Check if already voted
+      const { data: existing } = await supabase
+        .from('votes')
+        .select('id')
+        .eq('email', vote.email)
+        .eq('category_id', vote.category_id)
+        .single()
+
+      if (existing) {
         errorCount++
-        console.log(`Error for ${vote.category_name}: ${data.error}`)
+        continue
+      }
+
+      // Insert vote
+      const { error } = await supabase
+        .from('votes')
+        .insert([vote])
+
+      if (error) {
+        errorCount++
+      } else {
+        successCount++
       }
     } catch (err) {
       errorCount++

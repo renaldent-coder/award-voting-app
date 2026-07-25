@@ -44,110 +44,140 @@
   <div id="allVotes"></div>
 </div>
 
-<script>
-  const ADMIN_PASSWORD = 'SUGADMIN2026'
+<script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0"
+  }
+}
+</script>
+<script type="module">
+import { createClient } from '@supabase/supabase-js'
 
-  async function loadResults() {
-    const password = document.getElementById('adminPassword').value
-    if (!password) { alert('Enter password'); return }
+const supabaseUrl = 'https://qzxrsvapvlkijgkeezsp.supabase.co'
+const supabaseKey = 'sb_publishable_HONLI6rtWjXOue12FNkVOw_g3CJd6RA'
+const supabase = createClient(supabaseUrl, supabaseKey)
 
-    document.getElementById('results').innerHTML = '<div class="loading">Loading...</div>'
+const ADMIN_PASSWORD = 'SUGADMIN2026'
 
-    try {
-      const res = await fetch('/api/results', {
-        headers: { 'x-admin-password': password }
-      })
-      const data = await res.json()
+window.loadResults = async function() {
+  const password = document.getElementById('adminPassword').value
+  if (!password) { alert('Enter password'); return }
+  if (password !== ADMIN_PASSWORD) { alert('Wrong password'); return }
 
-      if (!res.ok) {
-        document.getElementById('results').innerHTML = `<p style="color:red">❌ ${data.error || 'Unauthorized'}</p>`
-        return
-      }
+  document.getElementById('results').innerHTML = '<div class="loading">Loading...</div>'
 
-      displayResults(data)
-    } catch (err) {
-      document.getElementById('results').innerHTML = `<p style="color:red">❌ Error: ${err.message}</p>`
+  try {
+    const { data: votes, error } = await supabase
+      .from('votes')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      document.getElementById('results').innerHTML = `<p style="color:red">❌ Error: ${error.message}</p>`
+      return
     }
+
+    displayResults(votes)
+  } catch (err) {
+    document.getElementById('results').innerHTML = `<p style="color:red">❌ Error: ${err.message}</p>`
   }
+}
 
-  function displayResults(data) {
-    const { results, total_votes, votes } = data
-
-    document.getElementById('stats').innerHTML = `📊 Total Votes: <strong>${total_votes}</strong>`
-
-    let html = ''
-    const categoryOrder = [
-      "BEST STUDENT OF THE YEAR", "MOST OUTSTANDING STUDENT", "BEST DEPARTMENT OF THE YEAR",
-      "OUTSTANDING S.U.G EXECUTIVE", "BEST COURSE REP OF THE YEAR", "BEST DEAN OF THE YEAR",
-      "OUTSTANDING LEADER OF THE YEAR", "BEST MALE LECTURER OF THE YEAR",
-      "BEST STUDENT ENTREPRENEUR OF THE YEAR", "BEST FEMALE LECTURER OF THE YEAR",
-      "BEST TICKOTER OF THE YEAR", "PHOTOGRAPHER OF THE YEAR", "FASHION ICON OF THE YEAR",
-      "SPORT PERSONALITY OF THE YEAR", "BEST MALE DRESSED OF THE YEAR",
-      "BEST FEMALE COMRADE OF THE YEAR", "BEST FEMALE DRESSED OF THE YEAR",
-      "MOST SUPPORTIVE LEADER OF THE YEAR", "MOST VULNERABLE PLAYER (M.V.P)",
-      "OUTSTANDING COMRADE OF THE YEAR", "BEST COOPERATE STUDENT OF THE YEAR",
-      "MOST BEAUTIFUL GIRL", "MOST SOCIAL STUDENT", "MOST CUTE GUY OF THE YEAR",
-      "BEST HOD OF THE YEAR", "BEST CHRISTIAN PERSONALITY", "EXCELLENCE",
-      "OUTSTANDING DIRECTOR OF THE YEAR", "BEST RED CARPET HOST OF THE YEAR"
-    ]
-
-    categoryOrder.forEach(cat => {
-      if (results[cat] && results[cat].length > 0) {
-        const medals = ['🥇', '🥈', '🥉']
-        html += `<div class="category-result"><h3>🏆 ${cat}</h3>`
-        results[cat].forEach((item, i) => {
-          const medal = medals[i] || `${i+1}.`
-          const cls = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : ''
-          html += `<div class="nominee-row">
-            <span class="rank">${medal}</span>
-            <span class="name ${cls}">${item.name}</span>
-            <span class="count">${item.count} vote${item.count > 1 ? 's' : ''}</span>
-          </div>`
-        })
-        html += '</div>'
-      } else {
-        html += `<div class="category-result"><h3>🏆 ${cat}</h3><p style="color:#666">No votes yet</p></div>`
-      }
-    })
-
-    document.getElementById('results').innerHTML = html
-
-    // Show all votes table
-    if (votes && votes.length > 0) {
-      let tableHtml = `<h3>📋 All Votes (${votes.length})</h3><table>
-        <tr><th>Voter</th><th>Email</th><th>Category</th><th>Nominee</th><th>Time</th></tr>`
-      votes.slice(0, 100).forEach(v => {
-        tableHtml += `<tr><td>${v.voter_name}</td><td>${v.email}</td><td>${v.category_name}</td><td>${v.nominee_name}</td><td>${new Date(v.created_at).toLocaleString()}</td></tr>`
-      })
-      tableHtml += '</table>'
-      if (votes.length > 100) tableHtml += `<p style="color:#666">Showing first 100 of ${votes.length} votes</p>`
-      document.getElementById('allVotes').innerHTML = tableHtml
+function displayResults(votes) {
+  // Group by category and count nominees
+  const categories = {}
+  votes.forEach(vote => {
+    if (!categories[vote.category_name]) {
+      categories[vote.category_name] = {}
     }
+    if (!categories[vote.category_name][vote.nominee_name]) {
+      categories[vote.category_name][vote.nominee_name] = 0
+    }
+    categories[vote.category_name][vote.nominee_name]++
+  })
+
+  // Get top 5 per category
+  let html = `<div id="stats">📊 Total Votes: <strong>${votes.length}</strong></div>`
+  
+  const categoryOrder = [
+    "BEST STUDENT OF THE YEAR", "MOST OUTSTANDING STUDENT", "BEST DEPARTMENT OF THE YEAR",
+    "OUTSTANDING S.U.G EXECUTIVE", "BEST COURSE REP OF THE YEAR", "BEST DEAN OF THE YEAR",
+    "OUTSTANDING LEADER OF THE YEAR", "BEST MALE LECTURER OF THE YEAR",
+    "BEST STUDENT ENTREPRENEUR OF THE YEAR", "BEST FEMALE LECTURER OF THE YEAR",
+    "BEST TICKOTER OF THE YEAR", "PHOTOGRAPHER OF THE YEAR", "FASHION ICON OF THE YEAR",
+    "SPORT PERSONALITY OF THE YEAR", "BEST MALE DRESSED OF THE YEAR",
+    "BEST FEMALE COMRADE OF THE YEAR", "BEST FEMALE DRESSED OF THE YEAR",
+    "MOST SUPPORTIVE LEADER OF THE YEAR", "MOST VULNERABLE PLAYER (M.V.P)",
+    "OUTSTANDING COMRADE OF THE YEAR", "BEST COOPERATE STUDENT OF THE YEAR",
+    "MOST BEAUTIFUL GIRL", "MOST SOCIAL STUDENT", "MOST CUTE GUY OF THE YEAR",
+    "BEST HOD OF THE YEAR", "BEST CHRISTIAN PERSONALITY", "EXCELLENCE",
+    "OUTSTANDING DIRECTOR OF THE YEAR", "BEST RED CARPET HOST OF THE YEAR"
+  ]
+
+  categoryOrder.forEach(cat => {
+    if (categories[cat] && Object.keys(categories[cat]).length > 0) {
+      const sorted = Object.entries(categories[cat])
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+      
+      const medals = ['🥇', '🥈', '🥉']
+      html += `<div class="category-result"><h3>🏆 ${cat}</h3>`
+      sorted.forEach(([name, count], i) => {
+        const medal = medals[i] || `${i+1}.`
+        const cls = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : ''
+        html += `<div class="nominee-row">
+          <span class="rank">${medal}</span>
+          <span class="name ${cls}">${name}</span>
+          <span class="count">${count} vote${count > 1 ? 's' : ''}</span>
+        </div>`
+      })
+      html += '</div>'
+    } else {
+      html += `<div class="category-result"><h3>🏆 ${cat}</h3><p style="color:#666">No votes yet</p></div>`
+    }
+  })
+
+  // Show all votes table
+  if (votes && votes.length > 0) {
+    let tableHtml = `<h3>📋 All Votes (${votes.length})</h3><table>
+      <tr><th>Voter</th><th>Email</th><th>Category</th><th>Nominee</th><th>Time</th></tr>`
+    votes.slice(0, 100).forEach(v => {
+      tableHtml += `<tr><td>${v.voter_name}</td><td>${v.email}</td><td>${v.category_name}</td><td>${v.nominee_name}</td><td>${new Date(v.created_at).toLocaleString()}</td></tr>`
+    })
+    tableHtml += '</table>'
+    if (votes.length > 100) tableHtml += `<p style="color:#666">Showing first 100 of ${votes.length} votes</p>`
+    document.getElementById('allVotes').innerHTML = tableHtml
   }
 
-  async function exportCSV() {
-    const password = document.getElementById('adminPassword').value
-    if (!password) { alert('Enter password first'); return }
+  document.getElementById('results').innerHTML = html
+}
 
-    const res = await fetch('/api/results', {
-      headers: { 'x-admin-password': password }
-    })
-    const data = await res.json()
-    if (!res.ok) { alert('Unauthorized'); return }
+window.exportCSV = async function() {
+  const password = document.getElementById('adminPassword').value
+  if (!password) { alert('Enter password first'); return }
+  if (password !== ADMIN_PASSWORD) { alert('Wrong password'); return }
 
-    let csv = 'Voter,Email,Category,Nominee,Time\n'
-    data.votes.forEach(v => {
-      csv += `"${v.voter_name}","${v.email}","${v.category_name}","${v.nominee_name}","${v.created_at}"\n`
-    })
+  const { data: votes, error } = await supabase
+    .from('votes')
+    .select('*')
+    .order('created_at', { ascending: false })
 
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'award_votes.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  if (error) { alert('Error fetching votes'); return }
+
+  let csv = 'Voter,Email,Category,Nominee,Time\n'
+  votes.forEach(v => {
+    csv += `"${v.voter_name}","${v.email}","${v.category_name}","${v.nominee_name}","${v.created_at}"\n`
+  })
+
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'award_votes.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
 </script>
 </body>
 </html>
