@@ -1,16 +1,8 @@
 {
-  "functions": {
-    "api/vote.js": {
-      "runtime": "nodejs@18.x"
-    },
-    "api/results.js": {
-      "runtime": "nodejs@18.x"
-    }
-  },
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "source": "/(.*)",
+      "destination": "/$1"
     }
   ]
 }
