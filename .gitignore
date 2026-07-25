@@ -1,6 +1,4 @@
-node_module/
-.DS_Store
-.env
-.env.local
-.env.*.local
 .vercel
+.env*
+.evn.local
+.env.*.local

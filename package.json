@@ -1,13 +1,16 @@
 {
   "name": "award-voting-app",
   "version": "1.0.0",
-  "description": "SUG Awards Voting System",
-  "main": "index.html",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "build": "echo 'No build needed'",
-    "start": "vercel dev"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0"
+    "@supabase/supabase-js": "^2.110.8"
   }
 }
