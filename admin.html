@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard - SUG Awards</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="container admin-container">
+  <div class="header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+    <div>
+      <h1>🔐 Admin Dashboard</h1>
+      <p>Bayelsa State Polytechnic, Aleibiri</p>
+    </div>
+    <div>
+      <a href="index.html" style="color:#ffd700;margin-right:15px;">← Back to Login</a>
+      <a href="admin-nominees.html" style="color:#ffd700;background:rgba(255,215,0,0.1);padding:8px 16px;border-radius:8px;text-decoration:none;">📝 Manage Nominees</a>
+    </div>
+  </div>
+
+  <!-- Password -->
+  <div class="admin-password" style="margin:20px 0;display:flex;gap:10px;flex-wrap:wrap;">
+    <input type="password" id="adminPassword" placeholder="Enter admin password..." style="flex:1;min-width:200px;" />
+    <button onclick="loginAdmin()" style="width:auto;padding:12px 30px;">Login</button>
+  </div>
+
+  <!-- Stats -->
+  <div id="stats" style="display:none;margin:20px 0;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;">
+      <div class="card" style="text-align:center;"><h2 id="totalVoters">0</h2><p style="color:#aaa;">Voters</p></div>
+      <div class="card" style="text-align:center;"><h2 id="totalVotes">0</h2><p style="color:#aaa;">Total Votes</p></div>
+      <div class="card" style="text-align:center;"><h2 id="totalRevenue">₦0</h2><p style="color:#aaa;">Revenue</p></div>
+      <div class="card" style="text-align:center;"><h2 id="totalCoins">0</h2><p style="color:#aaa;">Coins Used</p></div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results" style="margin-top:30px;"></div>
+
+  <div id="message"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0"
+  }
+}
+</script>
+<script type="module">
+import { supabase } from './supabase/client.js'
+
+const ADMIN_PASSWORD = 'SUGADMIN2026'
+const message = document.getElementById('message')
+
+function showMessage(msg, type) {
+  message.textContent = msg
+  message.className = type
+  message.style.display = 'block'
+}
+
+window.loginAdmin = async function() {
+  const password = document.getElementById('adminPassword').value
+  if (password !== ADMIN_PASSWORD) {
+    showMessage('❌ Wrong password!', 'error')
+    return
+  }
+
+  document.getElementById('stats').style.display = 'block'
+  document.getElementById('adminPassword').value = ''
+  showMessage('✅ Logged in!', 'success')
+  await loadStats()
+  await loadResults()
+}
+
+async function loadStats() {
+  try {
+    const { data: voters } = await supabase.from('voters').select('id')
+    const { data: votes } = await supabase.from('votes').select('id')
+    const { data: transactions } = await supabase.from('transactions').select('amount')
+    
+    document.getElementById('totalVoters').textContent = voters?.length || 0
+    document.getElementById('totalVotes').textContent = votes?.length || 0
+    const revenue = transactions?.reduce((sum, t) => sum + t.amount, 0) || 0
+    document.getElementById('totalRevenue').textContent = `₦${revenue.toLocaleString()}`
+    
+    const { data: votersWithCoins } = await supabase.from('voters').select('used_coins')
+    const totalCoins = votersWithCoins?.reduce((sum, v) => sum + (v.used_coins || 0), 0) || 0
+    document.getElementById('totalCoins').textContent = totalCoins
+  } catch (err) {
+    showMessage('❌ Error loading stats: ' + err.message, 'error')
+  }
+}
+
+async function loadResults() {
+  const container = document.getElementById('results')
+  container.innerHTML = 'Loading...'
+
+  try {
+    const { data: votes, error } = await supabase
+      .from('votes')
+      .select(`
+        *,
+        nominees (name),
+        categories (name)
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    // Group by category
+    const categories = {}
+    votes.forEach(v => {
+      const catName = v.categories.name
+      if (!categories[catName]) categories[catName] = {}
+      if (!categories[catName][v.nominees.name]) categories[catName][v.nominees.name] = 0
+      categories[catName][v.nominees.name]++
+    })
+
+    // Get all category names in order
+    const { data: allCategories } = await supabase.from('categories').select('name').order('id')
+    const categoryOrder = allCategories.map(c => c.name)
+
+    let html = '<h2>🏆 Top 5 Per Category</h2>'
+    const medals = ['🥇', '🥈', '🥉']
+
+    categoryOrder.forEach(catName => {
+      if (categories[catName]) {
+        const sorted = Object.entries(categories[catName])
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+
+        html += `<div class="category-box"><h3>🏆 ${catName}</h3>`
+        sorted.forEach(([name, count], i) => {
+          const medal = medals[i] || `${i+1}.`
+          const cls = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : ''
+          html += `<div class="nominee-row">
+            <span style="color:#888;margin-right:10px;">${medal}</span>
+            <span class="name" style="color:${i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#fff'}">${name}</span>
+            <span style="color:#ffd700;font-weight:bold;">${count} vote${count > 1 ? 's' : ''}</span>
+          </div>`
+        })
+        html += '</div>'
+      } else {
+        html += `<div class="category-box"><h3>🏆 ${catName}</h3><p style="color:#666;">No votes yet</p></div>`
+      }
+    })
+
+    container.innerHTML = html
+  } catch (err) {
+    container.innerHTML = `<p style="color:red;">❌ Error: ${err.message}</p>`
+  }
+}
+</script>
+</body>
+</html>

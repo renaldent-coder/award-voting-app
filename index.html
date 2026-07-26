@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SUG Awards - Login</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>🏆 SUG AWARDS</h1>
+    <h2>Bayelsa State Polytechnic, Aleibiri</h2>
+    <p>3rd Award Week Presentation • Sat 22 Aug 2026</p>
+  </div>
+
+  <!-- Login Form -->
+  <div id="loginSection">
+    <h2>🔐 Login</h2>
+    <form id="loginForm">
+      <input type="email" id="loginEmail" placeholder="Email Address" required />
+      <input type="password" id="loginPassword" placeholder="Password" required />
+      <button type="submit">Login</button>
+    </form>
+    <p style="text-align:center; margin-top:15px; color:#aaa;">
+      Don't have an account? <a href="#" id="showSignup" style="color:#ffd700;">Sign Up</a>
+    </p>
+    <div class="admin-link">
+      <a href="admin.html">🔑 Admin Login →</a>
+    </div>
+  </div>
+
+  <!-- Signup Form -->
+  <div id="signupSection" style="display:none;">
+    <h2>📝 Sign Up</h2>
+    <form id="signupForm">
+      <input type="email" id="signupEmail" placeholder="Email Address" required />
+      <input type="password" id="signupPassword" placeholder="Password" required />
+      <input type="password" id="signupConfirm" placeholder="Confirm Password" required />
+      <button type="submit">Create Account</button>
+    </form>
+    <p style="text-align:center; margin-top:15px; color:#aaa;">
+      Already have an account? <a href="#" id="showLogin" style="color:#ffd700;">Login</a>
+    </p>
+  </div>
+
+  <div id="message"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0"
+  }
+}
+</script>
+<script type="module">
+import { supabase } from './supabase/client.js'
+
+// DOM elements
+const loginSection = document.getElementById('loginSection')
+const signupSection = document.getElementById('signupSection')
+const loginForm = document.getElementById('loginForm')
+const signupForm = document.getElementById('signupForm')
+const showSignup = document.getElementById('showSignup')
+const showLogin = document.getElementById('showLogin')
+const message = document.getElementById('message')
+
+function showMessage(msg, type) {
+  message.textContent = msg
+  message.className = type
+  message.style.display = 'block'
+}
+
+// Toggle between login and signup
+showSignup.addEventListener('click', (e) => {
+  e.preventDefault()
+  loginSection.style.display = 'none'
+  signupSection.style.display = 'block'
+  message.style.display = 'none'
+})
+
+showLogin.addEventListener('click', (e) => {
+  e.preventDefault()
+  loginSection.style.display = 'block'
+  signupSection.style.display = 'none'
+  message.style.display = 'none'
+})
+
+// Login
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const email = document.getElementById('loginEmail').value.trim()
+  const password = document.getElementById('loginPassword').value.trim()
+
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', email, password })
+    })
+    const data = await res.json()
+
+    if (data.success) {
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('voter_id', data.voter_id)
+      localStorage.setItem('voter_email', email)
+      showMessage('✅ Login successful! Redirecting...', 'success')
+      setTimeout(() => window.location.href = 'dashboard.html', 1500)
+    } else {
+      showMessage('❌ ' + data.error, 'error')
+    }
+  } catch (err) {
+    showMessage('❌ Error: ' + err.message, 'error')
+  }
+})
+
+// Signup
+signupForm.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const email = document.getElementById('signupEmail').value.trim()
+  const password = document.getElementById('signupPassword').value.trim()
+  const confirm = document.getElementById('signupConfirm').value.trim()
+
+  if (password !== confirm) {
+    showMessage('❌ Passwords do not match!', 'error')
+    return
+  }
+
+  if (password.length < 6) {
+    showMessage('❌ Password must be at least 6 characters!', 'error')
+    return
+  }
+
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'signup', email, password })
+    })
+    const data = await res.json()
+
+    if (data.success) {
+      showMessage('✅ Account created! Please login.', 'success')
+      setTimeout(() => {
+        loginSection.style.display = 'block'
+        signupSection.style.display = 'none'
+        message.style.display = 'none'
+        document.getElementById('signupEmail').value = ''
+        document.getElementById('signupPassword').value = ''
+        document.getElementById('signupConfirm').value = ''
+      }, 1500)
+    } else {
+      showMessage('❌ ' + data.error, 'error')
+    }
+  } catch (err) {
+    showMessage('❌ Error: ' + err.message, 'error')
+  }
+})
+</script>
+</body>
+</html>

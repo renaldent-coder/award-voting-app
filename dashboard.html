@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SUG Awards - Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>🏆 SUG AWARDS</h1>
+    <h2>Bayelsa State Polytechnic, Aleibiri</h2>
+    <p>Welcome, <span id="userEmail">User</span>!</p>
+  </div>
+
+  <!-- Balance -->
+  <div class="balance-box">
+    <div class="label">Your Voting Coins</div>
+    <div class="coins" id="balance">0</div>
+    <button id="refreshBalance" class="btn-secondary" style="width:auto;padding:8px 20px;margin-top:10px;">🔄 Refresh</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="active" data-tab="buy">Buy Coins</button>
+    <button data-tab="vote">Vote</button>
+    <button data-tab="history">My Votes</button>
+  </div>
+
+  <!-- Buy Coins Tab -->
+  <div id="tab-buy">
+    <h3>💳 Buy Voting Coins</h3>
+    <p style="color:#aaa;margin-bottom:15px;">Each vote costs 1 coin. ₦100 per coin.</p>
+
+    <div class="coin-packages" id="coinPackages">
+      <div class="coin-package" data-amount="100" data-coins="1" data-bonus="0">
+        <div class="price">₦100</div>
+        <div class="votes">1 vote</div>
+      </div>
+      <div class="coin-package" data-amount="500" data-coins="5" data-bonus="0">
+        <div class="price">₦500</div>
+        <div class="votes">5 votes</div>
+      </div>
+      <div class="coin-package" data-amount="1000" data-coins="10" data-bonus="0">
+        <div class="price">₦1,000</div>
+        <div class="votes">10 votes</div>
+      </div>
+      <div class="coin-package" data-amount="2000" data-coins="20" data-bonus="0">
+        <div class="price">₦2,000</div>
+        <div class="votes">20 votes</div>
+      </div>
+      <div class="coin-package" data-amount="3000" data-coins="30" data-bonus="3">
+        <div class="price">₦3,000</div>
+        <div class="votes">30 votes + 3 FREE!</div>
+        <div class="bonus">🎁 33 total</div>
+      </div>
+      <div class="coin-package" data-amount="5000" data-coins="50" data-bonus="0">
+        <div class="price">₦5,000</div>
+        <div class="votes">50 votes</div>
+      </div>
+    </div>
+
+    <button id="payNow" disabled>Select a package to pay</button>
+  </div>
+
+  <!-- Vote Tab -->
+  <div id="tab-vote" style="display:none;">
+    <h3>🗳️ Cast Your Vote</h3>
+    <p style="color:#aaa;margin-bottom:15px;">Select a category and nominee. This will use 1 coin.</p>
+
+    <select id="voteCategory">
+      <option value="">Select Category...</option>
+    </select>
+
+    <select id="voteNominee" disabled>
+      <option value="">Select Nominee...</option>
+    </select>
+
+    <button id="castVote" disabled>Vote! (1 coin)</button>
+  </div>
+
+  <!-- History Tab -->
+  <div id="tab-history" style="display:none;">
+    <h3>📊 My Votes</h3>
+    <div id="voteHistory">Loading...</div>
+  </div>
+
+  <button id="logoutBtn" class="btn-secondary" style="margin-top:30px;">Logout</button>
+  <div id="message"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0"
+  }
+}
+</script>
+<script type="module">
+import { supabase } from './supabase/client.js'
+
+// ===== Check Auth =====
+const token = localStorage.getItem('token')
+const voterId = localStorage.getItem('voter_id')
+const email = localStorage.getItem('voter_email')
+
+if (!token || !voterId) {
+  window.location.href = 'index.html'
+}
+
+document.getElementById('userEmail').textContent = email
+
+// ===== Elements =====
+const balanceEl = document.getElementById('balance')
+const refreshBtn = document.getElementById('refreshBalance')
+const coinPackages = document.querySelectorAll('.coin-package')
+const payBtn = document.getElementById('payNow')
+const tabBtns = document.querySelectorAll('.tabs button')
+const message = document.getElementById('message')
+
+let selectedPackage = null
+
+// ===== Show Message =====
+function showMessage(msg, type) {
+  message.textContent = msg
+  message.className = type
+  message.style.display = 'block'
+  setTimeout(() => { message.style.display = 'none' }, 5000)
+}
+
+// ===== Load Balance =====
+async function loadBalance() {
+  try {
+    const res = await fetch(`/api/coins?voter_id=${voterId}`)
+    const data = await res.json()
+    if (data.success) {
+      balanceEl.textContent = data.balance
+    } else {
+      showMessage('❌ Error loading balance', 'error')
+    }
+  } catch (err) {
+    showMessage('❌ Error: ' + err.message, 'error')
+  }
+}
+loadBalance()
+
+refreshBtn.addEventListener('click', loadBalance)
+
+// ===== Coin Packages =====
+coinPackages.forEach(pkg => {
+  pkg.addEventListener('click', () => {
+    coinPackages.forEach(p => p.classList.remove('selected'))
+    pkg.classList.add('selected')
+    selectedPackage = {
+      amount: parseInt(pkg.dataset.amount),
+      coins: parseInt(pkg.dataset.coins),
+      bonus: parseInt(pkg.dataset.bonus),
+      total: parseInt(pkg.dataset.coins) + parseInt(pkg.dataset.bonus)
+    }
+    payBtn.textContent = `Pay ₦${selectedPackage.amount} for ${selectedPackage.total} coins`
+    payBtn.disabled = false
+  })
+})
+
+// ===== Pay Now =====
+payBtn.addEventListener('click', async () => {
+  if (!selectedPackage) return
+
+  payBtn.disabled = true
+  payBtn.textContent = 'Processing...'
+
+  try {
+    const res = await fetch('/api/coins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        voter_id: voterId,
+        email: email,
+        amount: selectedPackage.amount,
+        coins: selectedPackage.coins,
+        bonus: selectedPackage.bonus,
+        total: selectedPackage.total
+      })
+    })
+    const data = await res.json()
+
+    if (data.success) {
+      // Redirect to Paystack
+      window.location.href = data.authorization_url
+    } else {
+      showMessage('❌ ' + data.error, 'error')
+      payBtn.disabled = false
+      payBtn.textContent = 'Try Again'
+    }
+  } catch (err) {
+    showMessage('❌ Error: ' + err.message, 'error')
+    payBtn.disabled = false
+    payBtn.textContent = 'Try Again'
+  }
+})
+
+// ===== Tabs =====
+tabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    tabBtns.forEach(b => b.classList.remove('active'))
+    btn.classList.add('active')
+    const tab = btn.dataset.tab
+    document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none')
+    document.getElementById(`tab-${tab}`).style.display = 'block'
+
+    if (tab === 'vote') loadCategoriesAndNominees()
+    if (tab === 'history') loadVoteHistory()
+  })
+})
+
+// ===== Load Categories & Nominees =====
+async function loadCategoriesAndNominees() {
+  try {
+    const { data: categories } = await supabase.from('categories').select('*').order('id')
+    const select = document.getElementById('voteCategory')
+    select.innerHTML = '<option value="">Select Category...</option>'
+    categories.forEach(c => {
+      select.innerHTML += `<option value="${c.id}">${c.name}</option>`
+    })
+    select.disabled = false
+  } catch (err) {
+    showMessage('❌ Error loading categories', 'error')
+  }
+}
+
+document.getElementById('voteCategory').addEventListener('change', async (e) => {
+  const catId = e.target.value
+  const nomineeSelect = document.getElementById('voteNominee')
+  const voteBtn = document.getElementById('castVote')
+
+  if (!catId) {
+    nomineeSelect.innerHTML = '<option value="">Select Nominee...</option>'
+    nomineeSelect.disabled = true
+    voteBtn.disabled = true
+    return
+  }
+
+  try {
+    const { data: nominees } = await supabase
+      .from('nominees')
+      .select('*')
+      .eq('category_id', catId)
+      .order('name')
+
+    nomineeSelect.innerHTML = '<option value="">Select Nominee...</option>'
+    nominees.forEach(n => {
+      nomineeSelect.innerHTML += `<option value="${n.id}">${n.name}</option>`
+    })
+    nomineeSelect.disabled = false
+  } catch (err) {
+    showMessage('❌ Error loading nominees', 'error')
+  }
+})
+
+document.getElementById('voteNominee').addEventListener('change', () => {
+  const voteBtn = document.getElementById('castVote')
+  voteBtn.disabled = !document.getElementById('voteNominee').value
+})
+
+document.getElementById('castVote').addEventListener('click', async () => {
+  const categoryId = document.getElementById('voteCategory').value
+  const nomineeId = document.getElementById('voteNominee').value
+
+  if (!categoryId || !nomineeId) return
+
+  const voteBtn = document.getElementById('castVote')
+  voteBtn.disabled = true
+  voteBtn.textContent = 'Voting...'
+
+  try {
+    const res = await fetch('/api/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voter_id: voterId, nominee_id: nomineeId, category_id: categoryId })
+    })
+    const data = await res.json()
+
+    if (data.success) {
+      showMessage('✅ Vote cast successfully!', 'success')
+      loadBalance()
+      loadVoteHistory()
+      // Reset selections
+      document.getElementById('voteNominee').value = ''
+      document.getElementById('voteNominee').disabled = true
+      document.getElementById('castVote').disabled = true
+    } else {
+      showMessage('❌ ' + data.error, 'error')
+    }
+  } catch (err) {
+    showMessage('❌ Error: ' + err.message, 'error')
+  }
+
+  voteBtn.disabled = false
+  voteBtn.textContent = 'Vote! (1 coin)'
+})
+
+// ===== Load Vote History =====
+async function loadVoteHistory() {
+  const container = document.getElementById('voteHistory')
+  container.innerHTML = 'Loading...'
+
+  try {
+    const { data: votes, error } = await supabase
+      .from('votes')
+      .select(`
+        *,
+        nominees (name),
+        categories (name)
+      `)
+      .eq('voter_id', voterId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    if (votes.length === 0) {
+      container.innerHTML = '<p style="color:#aaa;">You haven\'t voted yet.</p>'
+      return
+    }
+
+    let html = '<ul style="list-style:none;padding:0;">'
+    votes.forEach(v => {
+      html += `<li style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+        <strong>${v.nominees.name}</strong> — ${v.categories.name}
+        <span style="color:#888;font-size:0.8rem;float:right;">${new Date(v.created_at).toLocaleDateString()}</span>
+      </li>`
+    })
+    html += '</ul>'
+    container.innerHTML = html
+  } catch (err) {
+    container.innerHTML = '<p style="color:#888;">Could not load vote history.</p>'
+  }
+}
+
+// ===== Logout =====
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  try {
+    await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'logout', token })
+    })
+  } catch (err) {}
+
+  localStorage.removeItem('token')
+  localStorage.removeItem('voter_id')
+  localStorage.removeItem('voter_email')
+  window.location.href = 'index.html'
+})
+
+// Load initial data
+loadCategoriesAndNominees()
+</script>
+</body>
+</html>

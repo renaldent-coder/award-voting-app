@@ -1,0 +1,19 @@
+{
+  "name": "award-voting-app",
+  "version": "1.0.0",
+  "description": "SUG Awards Voting System with Paystack",
+  "scripts": {
+    "start": "netlify dev"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.8",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  },
+  "main": "script.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

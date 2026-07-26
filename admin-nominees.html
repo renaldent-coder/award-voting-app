@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Nominees - SUG Awards</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="container admin-container">
+  <div class="header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+    <div>
+      <h1>📝 Manage Nominees</h1>
+      <p>Edit nominees for each category</p>
+    </div>
+    <div>
+      <a href="admin.html" style="color:#ffd700;">← Back to Dashboard</a>
+    </div>
+  </div>
+
+  <!-- Password -->
+  <div class="admin-password" style="margin:20px 0;display:flex;gap:10px;flex-wrap:wrap;">
+    <input type="password" id="adminPassword" placeholder="Enter admin password..." style="flex:1;min-width:200px;" />
+    <button onclick="loginAdmin()" style="width:auto;padding:12px 30px;">Login</button>
+  </div>
+
+  <!-- Categories -->
+  <div id="categoriesContainer" style="margin-top:20px;"></div>
+
+  <div id="message"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0"
+  }
+}
+</script>
+<script type="module">
+import { supabase } from './supabase/client.js'
+
+const ADMIN_PASSWORD = 'SUGADMIN2026'
+const message = document.getElementById('message')
+
+function showMessage(msg, type) {
+  message.textContent = msg
+  message.className = type
+  message.style.display = 'block'
+  setTimeout(() => { message.style.display = 'none' }, 4000)
+}
+
+window.loginAdmin = async function() {
+  const password = document.getElementById('adminPassword').value
+  if (password !== ADMIN_PASSWORD) {
+    showMessage('❌ Wrong password!', 'error')
+    return
+  }
+  showMessage('✅ Logged in! Loading categories...', 'success')
+  await loadCategories()
+}
+
+async function loadCategories() {
+  const container = document.getElementById('categoriesContainer')
+  container.innerHTML = 'Loading...'
+
+  try {
+    const { data: categories } = await supabase.from('categories').select('*').order('id')
+    
+    let html = ''
+    for (const cat of categories) {
+      const { data: nominees } = await supabase
+        .from('nominees')
+        .select('*')
+        .eq('category_id', cat.id)
+        .order('name')
+
+      html += `
+        <div class="category-box" data-category-id="${cat.id}">
+          <h3>${cat.name}</h3>
+          <div class="nominee-inputs">
+            ${[1,2,3,4,5].map((_, i) => `
+              <input type="text" class="nominee-name" 
+                     data-category-id="${cat.id}" 
+                     data-index="${i}" 
+                     placeholder="Nominee ${i+1} name..." 
+                     value="${nominees[i]?.name || ''}" />
+            `).join('')}
+          </div>
+          <button class="btn-secondary" style="width:auto;padding:8px 20px;margin-top:10px;" 
+                  onclick="saveNominees(${cat.id})">
+            💾 Save Nominees
+          </button>
+        </div>
+      `
+    }
+    container.innerHTML = html
+  } catch (err) {
+    container.innerHTML = `<p style="color:red;">❌ Error: ${err.message}</p>`
+  }
+}
+
+window.saveNominees = async function(categoryId) {
+  const inputs = document.querySelectorAll(
+    `.nominee-name[data-category-id="${categoryId}"]`
+  )
+  const names = []
+  inputs.forEach(input => {
+    const val = input.value.trim()
+    if (val) names.push(val)
+  })
+
+  if (names.length === 0) {
+    showMessage('❌ Please enter at least one nominee name.', 'error')
+    return
+  }
+
+  try {
+    // Delete existing nominees for this category
+    await supabase
+      .from('nominees')
+      .delete()
+      .eq('category_id', categoryId)
+
+    // Insert new nominees
+    const insertData = names.map(name => ({
+      category_id: categoryId,
+      name: name
+    }))
+
+    const { error } = await supabase
+      .from('nominees')
+      .insert(insertData)
+
+    if (error) throw error
+
+    showMessage('✅ Nominees saved successfully!', 'success')
+  } catch (err) {
+    showMessage('❌ Error: ' + err.message, 'error')
+  }
+}
+</script>
+</body>
+</html>
