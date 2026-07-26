@@ -110,7 +110,7 @@ if (!token || !voterId) {
   window.location.href = 'index.html'
 }
 
-document.getElementById('userEmail').textContent = email
+document.getElementById('userEmail').textContent = email || 'User'
 
 // ===== Elements =====
 const balanceEl = document.getElementById('balance')
@@ -127,7 +127,7 @@ function showMessage(msg, type) {
   message.textContent = msg
   message.className = type
   message.style.display = 'block'
-  setTimeout(() => { message.style.display = 'none' }, 5000)
+  setTimeout(() => { message.style.display = 'none' }, 8000)
 }
 
 // ===== Load Balance =====
@@ -187,7 +187,9 @@ payBtn.addEventListener('click', async () => {
     const data = await res.json()
 
     if (data.success) {
-      // Redirect to Paystack
+      // Store transaction reference in session storage
+      sessionStorage.setItem('pending_reference', data.reference)
+      sessionStorage.setItem('pending_coins', selectedPackage.total)
       window.location.href = data.authorization_url
     } else {
       showMessage('❌ ' + data.error, 'error')
@@ -200,6 +202,48 @@ payBtn.addEventListener('click', async () => {
     payBtn.textContent = 'Try Again'
   }
 })
+
+// ===== CHECK FOR PAYMENT REDIRECT =====
+async function checkPaymentRedirect() {
+  const params = new URLSearchParams(window.location.search)
+  const reference = params.get('reference')
+  
+  if (reference) {
+    showMessage('⏳ Verifying your payment...', 'success')
+    
+    try {
+      // Check if transaction is already paid
+      const { data: transaction } = await supabase
+        .from('transactions')
+        .select('payment_status, total_coins_added, voter_id')
+        .eq('payment_reference', reference)
+        .single()
+      
+      if (transaction) {
+        if (transaction.payment_status === 'paid') {
+          showMessage('✅ Payment confirmed! Coins added!', 'success')
+          loadBalance()
+        } else {
+          // Try to verify with Paystack
+          const verifyRes = await fetch(`/api/verify-payment?reference=${reference}`)
+          const verifyData = await verifyRes.json()
+          
+          if (verifyData.success) {
+            showMessage(`✅ Payment confirmed! ${verifyData.coins} coins added!`, 'success')
+            loadBalance()
+          } else {
+            showMessage('⚠️ Payment pending. Please refresh in a few minutes.', 'error')
+          }
+        }
+      }
+      
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } catch (err) {
+      console.error('Redirect check error:', err)
+    }
+  }
+}
 
 // ===== Tabs =====
 tabBtns.forEach(btn => {
@@ -286,7 +330,6 @@ document.getElementById('castVote').addEventListener('click', async () => {
       showMessage('✅ Vote cast successfully!', 'success')
       loadBalance()
       loadVoteHistory()
-      // Reset selections
       document.getElementById('voteNominee').value = ''
       document.getElementById('voteNominee').disabled = true
       document.getElementById('castVote').disabled = true
@@ -354,8 +397,11 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   window.location.href = 'index.html'
 })
 
-// Load initial data
+// ===== Load initial data =====
 loadCategoriesAndNominees()
+
+// ===== Check for payment redirect =====
+checkPaymentRedirect()
 </script>
 </body>
 </html>
