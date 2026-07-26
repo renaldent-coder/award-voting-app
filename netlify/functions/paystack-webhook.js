@@ -21,6 +21,9 @@ export async function handler(event) {
     hash.update(JSON.stringify(payload))
     const expectedSignature = hash.digest('hex')
 
+    console.log('Signature:', signature)
+    console.log('Expected:', expectedSignature)
+
     if (signature !== expectedSignature) {
       return {
         statusCode: 400,
@@ -31,17 +34,21 @@ export async function handler(event) {
 
     const { event: eventType, data } = payload
 
+    console.log('Event:', eventType)
+    console.log('Data:', data)
+
     if (eventType === 'charge.success') {
       const reference = data.reference
 
       // Find transaction
-      const { data: transaction } = await supabase
+      const { data: transaction, error: findError } = await supabase
         .from('transactions')
         .select('*')
         .eq('payment_reference', reference)
         .single()
 
-      if (!transaction) {
+      if (findError || !transaction) {
+        console.log('Transaction not found:', reference)
         return {
           statusCode: 200,
           headers,
@@ -65,10 +72,12 @@ export async function handler(event) {
       await supabase
         .from('voters')
         .update({
-          balance: voter.balance + transaction.total_coins_added,
-          total_coins: voter.total_coins + transaction.total_coins_added
+          balance: (voter?.balance || 0) + transaction.total_coins_added,
+          total_coins: (voter?.total_coins || 0) + transaction.total_coins_added
         })
         .eq('id', transaction.voter_id)
+
+      console.log('Coins added successfully!')
     }
 
     return {
@@ -78,6 +87,7 @@ export async function handler(event) {
     }
 
   } catch (err) {
+    console.error('Webhook error:', err)
     return {
       statusCode: 500,
       headers,
