@@ -70,7 +70,7 @@ export async function handler(event) {
           email: email,
           amount: amount * 100, // Paystack uses kobo
           reference: transaction.payment_reference,
-          callback_url: 'https://award-voting-app.netlify.app/dashboard.html'
+          callback_url: 'https://byspolyvotes.netlify.app/dashboard.html'
         })
       })
 
