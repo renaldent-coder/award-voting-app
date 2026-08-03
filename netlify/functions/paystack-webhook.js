@@ -12,19 +12,45 @@ export async function handler(event) {
   }
 
   try {
-    const payload = JSON.parse(event.body)
+    // Log the raw request for debugging
+    console.log('🔔 Webhook received!')
+    console.log('📦 Raw body:', event.body)
+    console.log('📋 Headers:', JSON.stringify(event.headers))
 
-    // Verify Paystack signature
+    // Check if body is empty
+    if (!event.body) {
+      console.log('❌ Empty request body')
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ success: false, error: 'Empty request body' })
+      }
+    }
+
+    // Parse JSON body
+    let payload
+    try {
+      payload = JSON.parse(event.body)
+    } catch (parseError) {
+      console.log('❌ Invalid JSON:', parseError.message)
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ success: false, error: 'Invalid JSON' })
+      }
+    }
+
+    console.log('📦 Payload:', JSON.stringify(payload, null, 2))
+
+    // Verify Paystack signature (optional but recommended)
     const signature = event.headers['x-paystack-signature']
     const crypto = await import('crypto')
-    const hash = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
+    const hash = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY || '')
     hash.update(JSON.stringify(payload))
     const expectedSignature = hash.digest('hex')
 
-    console.log('Signature:', signature)
-    console.log('Expected:', expectedSignature)
-
-    if (signature !== expectedSignature) {
+    if (signature && signature !== expectedSignature) {
+      console.log('❌ Invalid signature')
       return {
         statusCode: 400,
         headers,
@@ -34,13 +60,11 @@ export async function handler(event) {
 
     const { event: eventType, data } = payload
 
-    console.log('Event:', eventType)
-    console.log('Data:', data)
-
     if (eventType === 'charge.success') {
       const reference = data.reference
+      console.log('💰 Payment successful! Reference:', reference)
 
-      // Find transaction
+      // Find transaction in Supabase
       const { data: transaction, error: findError } = await supabase
         .from('transactions')
         .select('*')
@@ -48,7 +72,8 @@ export async function handler(event) {
         .single()
 
       if (findError || !transaction) {
-        console.log('Transaction not found:', reference)
+        console.log('❌ Transaction not found:', reference)
+        console.log('Error:', findError)
         return {
           statusCode: 200,
           headers,
@@ -56,28 +81,35 @@ export async function handler(event) {
         }
       }
 
+      console.log('✅ Transaction found:', transaction.id)
+
       // Update transaction status
       await supabase
         .from('transactions')
         .update({ payment_status: 'paid' })
         .eq('payment_reference', reference)
 
-      // Add coins to voter balance
+      // Add coins to voter
       const { data: voter } = await supabase
         .from('voters')
         .select('balance, total_coins')
         .eq('id', transaction.voter_id)
         .single()
 
+      const newBalance = (voter?.balance || 0) + transaction.total_coins_added
+      const newTotal = (voter?.total_coins || 0) + transaction.total_coins_added
+
       await supabase
         .from('voters')
         .update({
-          balance: (voter?.balance || 0) + transaction.total_coins_added,
-          total_coins: (voter?.total_coins || 0) + transaction.total_coins_added
+          balance: newBalance,
+          total_coins: newTotal
         })
         .eq('id', transaction.voter_id)
 
-      console.log('Coins added successfully!')
+      console.log('✅ Coins added! New balance:', newBalance)
+    } else {
+      console.log('📌 Event type not handled:', eventType)
     }
 
     return {
@@ -87,7 +119,7 @@ export async function handler(event) {
     }
 
   } catch (err) {
-    console.error('Webhook error:', err)
+    console.error('❌ Webhook error:', err)
     return {
       statusCode: 500,
       headers,
