@@ -3,7 +3,6 @@
   publish = "."
 
 [build.environment]
-  SECRETS_SCAN_OMIT_PATHS = "supabase/client.js"
   SECRETS_SCAN_ENABLED = "false"
 
 [functions]
