@@ -41,24 +41,7 @@ export async function handler(event) {
     try {
       const { voter_id, email, amount, coins, bonus, total } = JSON.parse(event.body)
 
-      // Create transaction record
-      const { data: transaction, error } = await supabase
-        .from('transactions')
-        .insert([{
-          voter_id,
-          amount,
-          coins_bought: coins,
-          bonus_coins: bonus,
-          total_coins_added: total,
-          payment_reference: `REF-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-          payment_status: 'pending'
-        }])
-        .select()
-        .single()
-
-      if (error) throw error
-
-      // Initialize Paystack transaction
+      // Initialize Paystack transaction WITHOUT custom reference
       const paystackSecret = process.env.PAYSTACK_SECRET_KEY
       const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
         method: 'POST',
@@ -68,9 +51,9 @@ export async function handler(event) {
         },
         body: JSON.stringify({
           email: email,
-          amount: amount * 100, // Paystack uses kobo
-          reference: transaction.payment_reference,
+          amount: amount * 100,
           callback_url: 'https://byspolyvotes.netlify.app/dashboard.html'
+          // Let Paystack generate its own reference
         })
       })
 
@@ -80,13 +63,33 @@ export async function handler(event) {
         throw new Error(paystackData.message)
       }
 
+      // Get the reference Paystack generated
+      const paystackReference = paystackData.data.reference
+
+      // Save transaction with Paystack's reference
+      const { data: transaction, error } = await supabase
+        .from('transactions')
+        .insert([{
+          voter_id,
+          amount,
+          coins_bought: coins,
+          bonus_coins: bonus,
+          total_coins_added: total,
+          payment_reference: paystackReference,  // Use Paystack's reference
+          payment_status: 'pending'
+        }])
+        .select()
+        .single()
+
+      if (error) throw error
+
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           success: true,
           authorization_url: paystackData.data.authorization_url,
-          reference: transaction.payment_reference
+          reference: paystackReference
         })
       }
 
